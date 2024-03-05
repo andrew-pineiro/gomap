@@ -38,7 +38,6 @@ func verifyIP(ip string) (string, string) {
 }
 
 func testIPAddress(ip string, port string) bool {
-	//TODO(#2): handle not found ip addresses
 	timeout := time.Millisecond * 10
 	conn, err := net.DialTimeout("tcp", ip+":"+port, timeout)
 	if err != nil {

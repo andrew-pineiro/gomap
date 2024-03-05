@@ -71,7 +71,6 @@ func testIPAddress(ip string, port string) {
 		Port:      port,
 	}
 	IPs = append(IPs, validIP)
-	//TODO(#3): match valid ports with known ports
 	log.Println("Valid IP:", validIP.IPAddress+";", "Valid Port:", validIP.Port, "("+checkPort(validIP.Port)+")")
 }
 

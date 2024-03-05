@@ -24,6 +24,14 @@ type ValidIPs struct {
 
 var IPs []ValidIPs
 
+func portStringToInt(port string) int {
+	portInt, err := strconv.Atoi(port)
+	if err != nil {
+		log.Fatalf("ERROR: could not convert port %s to int: %s", port, err)
+	}
+	return portInt
+}
+
 func checkPort(port string) string {
 	portMatch := map[int]string{
 		20:  "ftp data",
@@ -43,10 +51,7 @@ func checkPort(port string) string {
 		220: "imap",
 		445: "smb-ad",
 	}
-	intPort, err := strconv.Atoi(port)
-	if err != nil {
-		log.Panicf("ERROR: cannot convert port to int %d", intPort)
-	}
+	intPort := portStringToInt(port)
 	val := portMatch[intPort]
 	if len(val) <= 0 {
 		val = "unknown"
@@ -54,15 +59,17 @@ func checkPort(port string) string {
 	return val
 }
 func verifyIP(ip string) (string, string) {
-
 	if strings.Contains(ip, "/") {
 		ip, ipnet, err := net.ParseCIDR(ip)
 		if err != nil {
-			log.Fatalf("ERROR: not a valid IP address %s", ip)
+			log.Fatalf("ERROR: %s is not a valid IP address", ip)
 		}
 		return ip.String(), ipnet.Mask.String()
 	} else {
 		ip := net.ParseIP(ip)
+		if ip == nil {
+			log.Fatalf("ERROR: %s is not a valid IP address", ip)
+		}
 		return ip.String(), "32"
 	}
 }
@@ -92,38 +99,36 @@ func getArgs(args []string) Arguments {
 
 	if len(args) > 2 {
 		if strings.Contains(args[2], "-") {
-			a.Ports = strings.Split(args[2], "-")
+			ports := strings.Split(args[2], "-")
+			startRange := portStringToInt(ports[0])
+			endRange := portStringToInt(ports[1])
+			for i := startRange; i < endRange+1; i++ {
+				a.Ports = append(a.Ports, fmt.Sprint(i))
+			}
+		} else if strings.Contains(args[2], ",") {
+			a.Ports = strings.Split(args[2], ",")
 		} else {
 			a.Ports = append(a.Ports, args[2])
 		}
 	}
-
 	return a
 }
 
 func main() {
 	var args = getArgs(os.Args)
-
+	//TODO(#1): add subnet mask usage
 	if args.IPAddress != "" {
 		//TODO(#4): handle more than range type port argument
-		startRange, err := strconv.Atoi(args.Ports[0])
-		if err != nil {
-			log.Panicf("ERROR: issue converting %s to int. %s", args.Ports[0], err)
-		}
-		endRange, err := strconv.Atoi(args.Ports[1])
-		if err != nil {
-			log.Panicf("ERROR: issue converting %s to int. %s", args.Ports[1], err)
-		}
-
-		for i := startRange; i < endRange+1; i++ {
-			if args.Mask != "32" {
-				//TODO(#1): add subnet mask usage
-				log.Fatalf("subnet mask usage not implemented")
-			} else {
-				go testIPAddress(args.IPAddress, fmt.Sprint(i))
+		switch len(args.Ports) {
+		case 1:
+			testIPAddress(args.IPAddress, fmt.Sprint(args.Ports[0]))
+		default:
+			for _, port := range args.Ports {
+				go testIPAddress(args.IPAddress, fmt.Sprint(port))
 				time.Sleep(Delay * time.Millisecond)
 			}
 		}
+
 		if len(IPs) == 0 {
 			log.Println("no valid IPs found")
 			return

@@ -6,9 +6,12 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
+
+const Delay = 2
 
 type Arguments struct {
 	IPAddress string
@@ -20,6 +23,24 @@ type ValidIPs struct {
 	Port      string
 }
 
+var IPs []ValidIPs
+
+func checkPort(port string) string {
+	portMatch := map[int]string{
+		20:  "ftp data",
+		21:  "ftp",
+		22:  "ssh",
+		23:  "telnet",
+		135: "rpc",
+		139: "smb",
+		445: "smb",
+	}
+	intPort, err := strconv.Atoi(port)
+	if err != nil {
+		log.Panicf("ERROR: cannot convert port to int %d", intPort)
+	}
+	return portMatch[intPort]
+}
 func verifyIP(ip string) (string, string) {
 
 	if strings.Contains(ip, "/") {
@@ -37,14 +58,21 @@ func verifyIP(ip string) (string, string) {
 	}
 }
 
-func testIPAddress(ip string, port string) bool {
-	timeout := time.Millisecond * 10
+func testIPAddress(ip string, port string) {
+	timeout := time.Millisecond * Delay
 	conn, err := net.DialTimeout("tcp", ip+":"+port, timeout)
 	if err != nil {
-		return false
+		return
 	}
+
 	defer conn.Close()
-	return true
+	validIP := ValidIPs{
+		IPAddress: ip,
+		Port:      port,
+	}
+	IPs = append(IPs, validIP)
+	//TODO(#3): match valid ports with known ports
+	log.Println("Valid IP:", validIP.IPAddress+";", "Valid Port:", validIP.Port, "("+checkPort(validIP.Port)+")")
 }
 
 func getArgs(args []string) Arguments {
@@ -53,6 +81,7 @@ func getArgs(args []string) Arguments {
 		IPAddress: ip,
 		Mask:      mask,
 	}
+
 	if len(args) > 2 {
 		if strings.Contains(args[2], "-") {
 			a.Ports = strings.Split(args[2], "-")
@@ -60,6 +89,7 @@ func getArgs(args []string) Arguments {
 			a.Ports = append(a.Ports, args[2])
 		}
 	}
+
 	return a
 }
 
@@ -67,28 +97,28 @@ func main() {
 	var args = getArgs(os.Args)
 
 	if args.IPAddress != "" {
-		var ips []ValidIPs
-		for _, port := range args.Ports {
+
+		startRange, err := strconv.Atoi(args.Ports[0])
+		if err != nil {
+			log.Panicf("ERROR: issue converting %s to int. %s", args.Ports[0], err)
+		}
+		endRange, err := strconv.Atoi(args.Ports[1])
+		if err != nil {
+			log.Panicf("ERROR: issue converting %s to int. %s", args.Ports[1], err)
+		}
+
+		for i := startRange; i < endRange+1; i++ {
 			if args.Mask != "" {
 				//TODO(#1): add subnet mask usage
 				log.Fatalf("subnet mask usage not implemented")
 			} else {
-				valid := testIPAddress(args.IPAddress, port)
-				if valid {
-					validIP := ValidIPs{
-						IPAddress: args.IPAddress,
-						Port:      port,
-					}
-					ips = append(ips, validIP)
-				}
+				go testIPAddress(args.IPAddress, fmt.Sprint(i))
+				time.Sleep(Delay * time.Millisecond)
 			}
 		}
-		if len(ips) == 0 {
-			fmt.Println("no valid IPs found")
-		}
-		for _, ip := range ips {
-			//TODO(#3): match valid ports with known ports
-			fmt.Println("valid IP: ", ip.IPAddress, " Valid Port: ", ip.Port)
+		if len(IPs) == 0 {
+			log.Println("no valid IPs found")
+			return
 		}
 	}
 

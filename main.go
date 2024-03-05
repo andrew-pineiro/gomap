@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"net/netip"
 	"os"
 	"strconv"
 	"strings"
@@ -31,30 +30,40 @@ func checkPort(port string) string {
 		21:  "ftp",
 		22:  "ssh",
 		23:  "telnet",
+		25:  "smtp",
+		43:  "whois",
+		53:  "dns",
+		88:  "kerberos",
+		109: "pop2",
+		110: "pop3",
+		123: "ntp",
 		135: "rpc",
+		137: "netbios",
 		139: "smb",
-		445: "smb",
+		220: "imap",
+		445: "smb-ad",
 	}
 	intPort, err := strconv.Atoi(port)
 	if err != nil {
 		log.Panicf("ERROR: cannot convert port to int %d", intPort)
 	}
-	return portMatch[intPort]
+	val := portMatch[intPort]
+	if len(val) <= 0 {
+		val = "unknown"
+	}
+	return val
 }
 func verifyIP(ip string) (string, string) {
 
 	if strings.Contains(ip, "/") {
-		_, ipnet, err := net.ParseCIDR(ip)
+		ip, ipnet, err := net.ParseCIDR(ip)
 		if err != nil {
 			log.Fatalf("ERROR: not a valid IP address %s", ip)
 		}
-		return ipnet.IP.String(), ipnet.Mask.String()
+		return ip.String(), ipnet.Mask.String()
 	} else {
-		ipnet, err := netip.ParseAddr(ip)
-		if err != nil {
-			log.Fatalf("ERROR: not a valid IP address %s", ip)
-		}
-		return ipnet.String(), ""
+		ip := net.ParseIP(ip)
+		return ip.String(), "32"
 	}
 }
 
@@ -96,7 +105,7 @@ func main() {
 	var args = getArgs(os.Args)
 
 	if args.IPAddress != "" {
-
+		//TODO: handle more than range type port argument
 		startRange, err := strconv.Atoi(args.Ports[0])
 		if err != nil {
 			log.Panicf("ERROR: issue converting %s to int. %s", args.Ports[0], err)
@@ -107,7 +116,7 @@ func main() {
 		}
 
 		for i := startRange; i < endRange+1; i++ {
-			if args.Mask != "" {
+			if args.Mask != "32" {
 				//TODO(#1): add subnet mask usage
 				log.Fatalf("subnet mask usage not implemented")
 			} else {

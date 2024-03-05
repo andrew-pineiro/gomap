@@ -117,21 +117,23 @@ func getArgs(args []string) Arguments {
 func main() {
 	var args = getArgs(os.Args)
 	//TODO(#1): add subnet mask usage
-	if args.IPAddress != "" {
-		switch len(args.Ports) {
-		case 1:
-			testIPAddress(args.IPAddress, fmt.Sprint(args.Ports[0]))
-		default:
-			for _, port := range args.Ports {
-				go testIPAddress(args.IPAddress, fmt.Sprint(port))
-				time.Sleep(Delay * time.Millisecond)
-			}
-		}
+	if args.IPAddress == "" {
+		log.Fatalf("No ip address specified")
+	}
 
-		if len(IPs) == 0 {
-			log.Println("no valid IPs found")
-			return
+	switch len(args.Ports) {
+	case 1:
+		// using goroutines with single port would cause inconsistent responses
+		testIPAddress(args.IPAddress, fmt.Sprint(args.Ports[0]))
+	default:
+		for _, port := range args.Ports {
+			go testIPAddress(args.IPAddress, fmt.Sprint(port))
+			time.Sleep(Delay * time.Millisecond)
 		}
 	}
 
+	if len(IPs) == 0 {
+		log.Println("no valid IPs found")
+		return
+	}
 }

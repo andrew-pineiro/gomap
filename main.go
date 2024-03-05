@@ -118,7 +118,6 @@ func main() {
 	var args = getArgs(os.Args)
 	//TODO(#1): add subnet mask usage
 	if args.IPAddress != "" {
-		//TODO(#4): handle more than range type port argument
 		switch len(args.Ports) {
 		case 1:
 			testIPAddress(args.IPAddress, fmt.Sprint(args.Ports[0]))

@@ -5,14 +5,18 @@ import (
 	"net"
 	"net/netip"
 	"os"
+	"strings"
 	"time"
-
-	"github.com/tatsushid/go-fastping"
 )
 
 type Arguments struct {
 	IPAddress string
 	Mask      net.IPMask
+	Ports     []string
+}
+type ValidIPs struct {
+	IPAddress string
+	Port      string
 }
 
 func verifyIP(ip string) bool {
@@ -26,47 +30,30 @@ func verifyIP(ip string) bool {
 	}
 	return true
 }
-func testPort(host string, ports []string) {
-	for _, port := range ports {
-		timeout := time.Second
-		conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, port), timeout)
-		if err != nil {
-			fmt.Println("Connecting error:", err)
-		}
-		if conn != nil {
-			defer conn.Close()
-			fmt.Println("Opened", net.JoinHostPort(host, port))
-		}
-	}
-}
 
-func sendPing(ip string) {
+func testIPAddress(ip string, port string) bool {
 	//TODO(#1): add subnet mask usage
-	p := fastping.NewPinger()
-	ra, err := net.ResolveIPAddr("ip4:icmp", ip)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
-	}
-	p.AddIPAddr(ra)
-	p.OnRecv = func(addr *net.IPAddr, rtt time.Duration) {
-		fmt.Printf("IP Addr: %s receive, RTT: %v\n", addr.String(), rtt)
-	}
 	//TODO(#2): handle not found ip addresses
-	p.OnIdle = func() {
-		fmt.Println("finish")
-	}
-	err = p.Run()
+	timeout := time.Millisecond * 10
+	conn, err := net.DialTimeout("tcp", ip+":"+port, timeout)
 	if err != nil {
-		fmt.Println(err)
+		return false
 	}
+	defer conn.Close()
+	return true
 }
 
 func getArgs(args []string) Arguments {
 	var a Arguments
 	if verifyIP(args[1]) {
 		a.IPAddress = args[1]
-		sendPing(a.IPAddress)
+		if len(args) > 2 {
+			if strings.Contains(args[2], "-") {
+				a.Ports = strings.Split(args[2], "-")
+			} else {
+				a.Ports = append(a.Ports, args[2])
+			}
+		}
 	} else {
 		fmt.Printf("ERROR: %s is not a valid IP address", args[1])
 	}
@@ -77,7 +64,24 @@ func main() {
 	var args = getArgs(os.Args)
 
 	if args.IPAddress != "" {
-		sendPing(args.IPAddress, args.Mask)
+		var ips []ValidIPs
+		for _, port := range args.Ports {
+			valid := testIPAddress(args.IPAddress, port)
+			if valid {
+				validIP := ValidIPs{
+					IPAddress: args.IPAddress,
+					Port:      port,
+				}
+				ips = append(ips, validIP)
+			}
+		}
+		if len(ips) == 0 {
+			fmt.Println("no valid IPs found")
+		}
+		for _, ip := range ips {
+			//TODO(#3): match valid ports with known ports
+			fmt.Println("valid IP: ", ip.IPAddress, " Valid Port: ", ip.Port)
+		}
 	}
 
 }

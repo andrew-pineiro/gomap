@@ -105,7 +105,7 @@ func main() {
 	var args = getArgs(os.Args)
 
 	if args.IPAddress != "" {
-		//TODO: handle more than range type port argument
+		//TODO(#4): handle more than range type port argument
 		startRange, err := strconv.Atoi(args.Ports[0])
 		if err != nil {
 			log.Panicf("ERROR: issue converting %s to int. %s", args.Ports[0], err)

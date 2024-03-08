@@ -1,10 +1,10 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -12,11 +12,6 @@ import (
 
 const Delay = 2
 
-type Arguments struct {
-	IPAddress string
-	Mask      string
-	Ports     []string
-}
 type ValidIPs struct {
 	IPAddress string
 	Port      string
@@ -90,44 +85,50 @@ func testIPAddress(ip string, port string) {
 	log.Println("Valid IP:", validIP.IPAddress+";", "Valid Port:", validIP.Port, "("+checkPort(validIP.Port)+")")
 }
 
-func getArgs(args []string) Arguments {
-	ip, mask := verifyIP(args[1])
-	a := Arguments{
-		IPAddress: ip,
-		Mask:      mask,
+func getPorts(port string) []string {
+	var returnPorts []string
+
+	if strings.Contains(port, "-") {
+		ports := strings.Split(port, "-")
+		startRange := portStringToInt(ports[0])
+		endRange := portStringToInt(ports[1])
+		for i := startRange; i < endRange+1; i++ {
+			returnPorts = append(returnPorts, fmt.Sprint(i))
+		}
+	} else if strings.Contains(port, ",") {
+		returnPorts = strings.Split(port, ",")
+	} else {
+		returnPorts = append(returnPorts, port)
 	}
 
-	if len(args) > 2 {
-		if strings.Contains(args[2], "-") {
-			ports := strings.Split(args[2], "-")
-			startRange := portStringToInt(ports[0])
-			endRange := portStringToInt(ports[1])
-			for i := startRange; i < endRange+1; i++ {
-				a.Ports = append(a.Ports, fmt.Sprint(i))
-			}
-		} else if strings.Contains(args[2], ",") {
-			a.Ports = strings.Split(args[2], ",")
-		} else {
-			a.Ports = append(a.Ports, args[2])
-		}
-	}
-	return a
+	return returnPorts
 }
 
 func main() {
-	var args = getArgs(os.Args)
+	var host string
+	var ports string
+
+	//var args = getArgs(os.Args)
+	flag.StringVar(&host, "host", "", "Host IP Address")
+	flag.StringVar(&ports, "p", "", "port number or range")
+	flag.Parse()
+
+	portList := getPorts(ports)
+
 	//TODO(#1): add subnet mask usage
-	if args.IPAddress == "" {
+	ip, _ := verifyIP(host)
+
+	if ip == "" {
 		log.Fatalf("No ip address specified")
 	}
 
-	switch len(args.Ports) {
+	switch len(portList) {
 	case 1:
 		// using goroutines with single port would cause inconsistent responses
-		testIPAddress(args.IPAddress, fmt.Sprint(args.Ports[0]))
+		testIPAddress(ip, fmt.Sprint(portList[0]))
 	default:
-		for _, port := range args.Ports {
-			go testIPAddress(args.IPAddress, fmt.Sprint(port))
+		for _, port := range portList {
+			go testIPAddress(ip, fmt.Sprint(port))
 			time.Sleep(Delay * time.Millisecond)
 		}
 	}
